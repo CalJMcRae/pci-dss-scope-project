@@ -203,7 +203,7 @@ After implementing recommendations, the following risks remain:
 ## Appendices
 
 ### A. Network Diagram
-
+<pre> ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                                 INTERNET                                    │
 └───────────────────────────────┬─────────────────────────────────────────────┘
@@ -274,13 +274,13 @@ After implementing recommendations, the following risks remain:
                            Jump Host
                                │
                                ▼
-                               CDE
+                               CDE  ``` </pre>
 
 
 This network diagram illustrates the current segmentation design and highlights key trust relationships between the corporate, management, and CDE environments. Despite logical segmentation, shared services such as Active Directory, logging, and backup systems introduce indirect connectivity paths that weaken isolation of the CDE.                               
 
 ### B. Data Flow Diagram
-Customer Browser
+<pre> ```text Customer Browser
       │
       ▼ (HTTPS - PAN entry)
 Web Server (DMZ)
@@ -301,7 +301,7 @@ External Payment Gateway (3rd Party)
 
                          │
                          ▼
-                   Backup Infrastructure
+                   Backup Infrastructure ``` </pre>
 
 This diagram illustrates that cardholder data may flow into logging and backup systems, indicating that these systems must be considered in scope due to potential storage or exposure of sensitive data.
 
