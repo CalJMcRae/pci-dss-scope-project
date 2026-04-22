@@ -39,7 +39,7 @@ At Bluebridge Solutions, the Cardholder Data Environment (CDE) includes the web 
 
 | System Name | Data Types Stored | Retention | Justification |
 |--------|-----------------|------------------|-----------|
-| Payment DB | Tokenized PAN | 30 Days | Required for Bluebridge Solutions’ transaction reconciliation processes |
+| Payment DB | Tokenized PAN | 30 Days | Required for transaction reconciliation. Tokenized values only — raw PAN is never written to this system. Token-to-PAN mapping is managed exclusively by the Tokenization Service . |
 | Logging System | Partial PAN (masked) | 7 Days |Used by Bluebridge Solutions engineering team for debugging failed payment transactions |
 
 ### 2.2 Systems That PROCESS Cardholder Data
@@ -53,6 +53,7 @@ At Bluebridge Solutions, the Cardholder Data Environment (CDE) includes the web 
 
 | System | Function | Data | Justification |
 |--------|----------|------|---------------|
+| Web Server (DMZ) | Receives PAN from customer browser, forwards to Payment App | PAN | TLS 1.2+ | First point of PAN receipt; transmits to Payment App within CDE |
 |Web App → Payment Gateway | HTTPS | TLS 1.2+ | Secure transmission of card data |
 
 
@@ -65,14 +66,14 @@ At Bluebridge Solutions, the Cardholder Data Environment (CDE) includes the web 
 | System | Connection Type | Business Purpose | In Scope? | Justification |
 |--------|-----------------|------------------|-----------|---------------|
 | App Server | Internal API | Payment Processing | Yes | Supports Bluebridge Solutions’ core payment processing workflow |
-| Admin Workstation| SSH | Maintenance| Yes | Direct admin access |
+| Admin Workstation| SSH | Maintenance| Yes | Dedicated admin workstation with direct SSH access to CDE systems. Distinct from general corporate laptops — see Section 3.2 for VPN-based indirect access paths. |
 | Jump Host | RDP/SSH | Admin access | Yes | Required for controlled administrative access to Bluebridge Solutions’ CDE systems |
 
 ### 3.2 Indirect Connections (Via Intermediary)
 
 | System | Connection Path | Business Purpose | In Scope? | Justification |
 |--------|-----------------|------------------|-----------|---------------|
-| Corporate Laptop | VPN -> App Server | Admin access | Yes | Can reach CDE directly |
+| Corporate Laptop | VPN -> App Server | Admin access | Yes |General corporate endpoints that can reach the CDE indirectly via VPN and jump host. Unlike dedicated admin workstations, these are not directly connected but introduce indirect scope risk through shared access paths.  |
 
 User workstations within the corporate network are considered out of scope for direct PCI DSS assessment, as they do not store, process, or transmit card holder data. However due to their ability to access the CDE via VPN and administrative pathways, they are treated as connected systems and introduce indirect risk that must be controlled through access restrictions and monitoring.
 
@@ -127,7 +128,7 @@ User workstations within the corporate network are considered out of scope for d
 
 | Gap ID | Description | Risk | Remediation |
 |--------|-----------------|------------------|------------------|
-| GAP-001 | Overly permissive firewall rules | High | Restrict access |
+| GAP-001 | Overly permissive firewall rules | High | Implement least-privilege firewall rules between all zones; remove broad permit rules and restrict traffic to required ports, protocols, and explicit source/destination pairs. |
 | GAP-002 | Shared AD across environments | High | Separate domains |
 | GAP-003 | Lack of segmentation testing | Med | Perform validation |
 | GAP-004 | Shared backup infrastructure | High | Isolate backup systems or restrict access |

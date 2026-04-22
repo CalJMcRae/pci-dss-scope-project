@@ -24,7 +24,7 @@ PCI DSS is one of the fastest ways to expose whether someone understands real-wo
 
 ## The Scenario
 
-**Company:** MidTech Retail Solutions
+**Company:** Bluebridge Solutions
 **Industry:** E-commerce platform provider
 **Annual Card Transactions:** ~2.4 million
 **Current State:** Pursuing PCI DSS v4.0 compliance
