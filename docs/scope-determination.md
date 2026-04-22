@@ -3,8 +3,8 @@
 ## Document Information
 | Field | Value |
 |-------|-------|
-| Organization | [Bluebridge Solutions] |
-| Assessment Date | [4/15/2026] |
+| Organization | Bluebridge Solutions |
+| Assessment Date | 4/15/2026 |
 | Assessor | Callum McRae |
 | Version | 1.0 |
 | Status | Draft |
