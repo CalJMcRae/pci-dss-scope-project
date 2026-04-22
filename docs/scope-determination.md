@@ -129,10 +129,10 @@ User workstations within the corporate network are considered out of scope for d
 | Gap ID | Description | Risk | Remediation |
 |--------|-----------------|------------------|------------------|
 | GAP-001 | Overly permissive firewall rules | High | Implement least-privilege firewall rules between all zones; remove broad permit rules and restrict traffic to required ports, protocols, and explicit source/destination pairs. |
-| GAP-002 | Shared AD across environments | High | Separate domains |
-| GAP-003 | Lack of segmentation testing | Med | Perform validation |
-| GAP-004 | Shared backup infrastructure | High | Isolate backup systems or restrict access |
-| GAP-005 | Centralized logging zones | Med | Separate logging or sanitize logs |
+| GAP-002 | Shared AD across environments | High | Implement Active Directory tiering or deploy a dedicated CDE-specific identity provider isolated from the corporate domain. At minimum, enforce strict trust boundaries, privileged access workstations for CDE admin accounts, and separate service accounts that cannot authenticate across environments. |
+| GAP-003 | Lack of segmentation testing | Med | Conduct formal segmentation penetration testing at least annually and after any significant network change, per PCI DSS Requirement 11.4.5. Testing must attempt to traverse from out-of-scope networks into the CDE and validate that all identified access paths are blocked. |
+| GAP-004 | Shared backup infrastructure | High | Dedicate separate backup infrastructure to CDE systems or enforce strict access controls ensuring backup agents and storage targets for CDE systems are inaccessible from non-CDE environments. Validate that backup data containing CHD is encrypted at rest and that access is restricted to authorised personnel only. |
+| GAP-005 | Centralized logging zones | Med | Implement log filtering and redaction controls to prevent PAN or sensitive authentication data from being written to the centralised SIEM. Restrict access to CDE-sourced log data to authorised security personnel. Consider a dedicated log collector for CDE systems with one-way log forwarding to prevent reverse access paths. |
 | GAP-006 | Centralized jump host provides administrative access to entire CDE | High | Harden jump host, restrict access, implement session recording and isolation |
 | GAP-007 | Corporate endpoints can access CDE via VPN and jump host | High | Restrict VPN access, enforce device posture checks, isolate admin network |
 | GAP-008 | Logging system may ingest masked or partial PAN data | Medium–High | Validate log contents and implement strict redaction controls| 
