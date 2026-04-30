@@ -8,6 +8,7 @@
 | Assessor | Callum McRae |
 | Version | 1.0 |
 | Status | Draft |
+| Merchant Level | Level 2 (SAQ eligible — 1–6M annual transactions) |
 
 Bluebridge Solutions is a mid-sized e-commerce platform provider processing approximately 2.4 million annual card transactions and currently pursuing PCI DSS v4.0 compliance.
 
@@ -17,7 +18,7 @@ Bluebridge Solutions is a mid-sized e-commerce platform provider processing appr
 
 ### Scope Statement
 
-At Bluebridge Solutions, the Cardholder Data Environment (CDE) includes the web application servers, payment processing services, and associated databases hosted in AWS that store, process, or transmit cardholder data. Supporting systems with direct or indirect connectivity to these components have been evaluated for inclusion within PCI DSS scope.
+At Bluebridge Solutions, the Cardholder Data Environment (CDE) includes the web application servers, payment processing services, and associated databases hosted within Bluebridge Solutions' on-premise network environment that store, process, or transmit cardholder data. Supporting systems with direct or indirect connectivity to these components have been evaluated for inclusion within PCI DSS scope.
 
  Due to Bluebridge Solutions’ reliance on shared services (Active Directory, logging, backup, and patching), along with indirect access paths from the corporate and management zones, network segmentation at Bluebridge Solutions cannot be relied upon to reduce PCI DSS scope. Multiple trusted pathways and shared services create effective connectivity between in-scope and out-of-scope systems. As a result, these systems must be considered in scope for PCI DSS.
 
@@ -41,6 +42,7 @@ At Bluebridge Solutions, the Cardholder Data Environment (CDE) includes the web 
 |--------|-----------------|------------------|-----------|
 | Payment DB | Tokenized PAN | 30 Days | Required for transaction reconciliation. Tokenized values only — raw PAN is never written to this system. Token-to-PAN mapping is managed exclusively by the Tokenization Service . |
 | Logging System | Partial PAN (masked) | 7 Days |Used by Bluebridge Solutions engineering team for debugging failed payment transactions |
+| HSM Appliance | Encryption keys, transient PAN during processing | Transient only | PAN is processed in-memory during tokenization and never persisted to disk. |
 
 ### 2.2 Systems That PROCESS Cardholder Data
 
@@ -48,6 +50,7 @@ At Bluebridge Solutions, the Cardholder Data Environment (CDE) includes the web 
 |--------|----------|------|---------------|
 | Web App | Payment processing | PAN, CVV | Core business function |
 | Payment service | Authorization | PAN | required for transactional approval |
+| Tokenization Service | Converts PAN to tokens for storage and transmission | PAN (transient) | Core scope system — directly handles raw PAN during token generation. PAN is never persisted post-tokenization. |
 
 ### 2.3 Systems That TRANSMIT Cardholder Data
 
@@ -55,6 +58,7 @@ At Bluebridge Solutions, the Cardholder Data Environment (CDE) includes the web 
 |--------|----------|------|---------------|
 | Web Server (DMZ) | Receives PAN from customer browser, forwards to Payment App | PAN | TLS 1.2+ | First point of PAN receipt; transmits to Payment App within CDE |
 |Web App → Payment Gateway | HTTPS | TLS 1.2+ | Secure transmission of card data |
+| Payment App → Card Database | Internal CDE | PAN | Encrypted internal transmission; both endpoints within CDE scope |
 
 
 ---
@@ -68,12 +72,14 @@ At Bluebridge Solutions, the Cardholder Data Environment (CDE) includes the web 
 | App Server | Internal API | Payment Processing | Yes | Supports Bluebridge Solutions’ core payment processing workflow |
 | Admin Workstation| SSH | Maintenance| Yes | Dedicated admin workstation with direct SSH access to CDE systems. Distinct from general corporate laptops — see Section 3.2 for VPN-based indirect access paths. |
 | Jump Host | RDP/SSH | Admin access | Yes | Required for controlled administrative access to Bluebridge Solutions’ CDE systems |
+| Log Collector | Syslog forwarding | Log aggregation to SIEM | Yes | Located within CDE boundary; outbound log forwarding to Management Zone creates a connection path that must be controlled and monitored |
 
 ### 3.2 Indirect Connections (Via Intermediary)
 
 | System | Connection Path | Business Purpose | In Scope? | Justification |
 |--------|-----------------|------------------|-----------|---------------|
-| Corporate Laptop | VPN -> App Server | Admin access | Yes |General corporate endpoints that can reach the CDE indirectly via VPN and jump host. Unlike dedicated admin workstations, these are not directly connected but introduce indirect scope risk through shared access paths.  |
+| Corporate Laptop | VPN -> App Server | Admin access | Yes | Corporate workstation subnet can reach the CDE indirectly via VPN and jump host. The entire subnet must be treated as introducing indirect scope risk, not just individual laptops. Access controls and monitoring must apply at the subnet level. |
+| External Payment Gateway | Internet-facing API | Payment authorisation | Yes — third party | Third-party service provider; must maintain evidence of their current PCI DSS compliance status |
 
 User workstations within the corporate network are considered out of scope for direct PCI DSS assessment, as they do not store, process, or transmit card holder data. However due to their ability to access the CDE via VPN and administrative pathways, they are treated as connected systems and introduce indirect risk that must be controlled through access restrictions and monitoring.
 
@@ -89,6 +95,7 @@ User workstations within the corporate network are considered out of scope for d
 | SIEM | Logging | Missed breaches | Yes | Detection fail risk |
 | Backup Infrastructure | Data protection | Exposure of CHD | Yes | Stores backups of Bluebridge Solutions’ CDE systems, potentially including cardholder data |
 | Patch server | System updates | System compromise risk | Yes | Has privileged access |
+| Jump Host (10.2.1.50) | Privileged access gateway | Full administrative access to all CDE systems | Yes | Single point of administrative entry to CDE; compromise bypasses all other access controls. Requires hardening per Requirement 8.6.1 |
 
 ---
 
@@ -98,6 +105,10 @@ User workstations within the corporate network are considered out of scope for d
 | CDE System |Authenticate Source | Risk if compromised | Mitigation |
 |--------|-----------------|------------------|-----------|
 | App Server | Active Directory | Domain compromise = full access | MFA + Segmentation |
+| Payment App | Active Directory | Domain compromise = full access | MFA + dedicated CDE service accounts |
+| Card Database | Active Directory | Domain compromise = DB access | MFA + DB-specific service accounts with least privilege |
+| HSM  | Local authentication (assumed) | Local credential compromise | HSM-specific access controls per FIPS 140-2 |
+| Tokenization Service | Active Directory | Domain compromise = tokenization bypass | MFA + isolated service account |
 
 
 ### 5.2 Shared Services
@@ -119,10 +130,10 @@ User workstations within the corporate network are considered out of scope for d
 
 | Control | Description | Effectiveness | Evidence |
 |--------|-----------------|------------------|-----------|
-| Firewall rules | Restricts inbound traffic | Weak | Broad Rules |
-| VLAN separation | Logical Separation | Weak | Shared Routing |
-| Access controls | Role Based | Medium | Some over-permission |
-| Monitoring | SIEM Alerts | Medium | Limited coverage |
+| Firewall rules | Restricts inbound traffic | Weak | Broad Rules EV-001 |
+| VLAN separation | Logical Separation | Weak | Shared Routing EV-001, EV-002 |
+| Access controls | Role Based | Medium | Some over-permission EV-003, EV-006 |
+| Monitoring | SIEM Alerts | Medium | Limited coverage EV-004|
 
 ### 6.2 Segmentation Gaps
 
@@ -155,7 +166,7 @@ As a result, segmentation cannot be relied upon to reduce PCI DSS scope in its c
 | Admin Access | Who can access CDE? | Limited but overly broad | VPN access logs, jump host session logs, and system access control lists (ACLs) demonstrating which users and systems can initiate administrative connections to CDE systems, including authentication methods and privilege levels. |
 | Logging | “Is the logging infrastructure segmented between CDE and non-CDE systems?” | Bluebridge Solutions utilizes a centralized logging architecture that ingests data from both CDE and non-CDE systems. While access controls exist, the lack of segmentation means a compromise of the logging platform could provide visibility into or indirect access to CDE systems. | Network diagram, SIEM architecture  |
 | Backups | “How are backup systems segmented to prevent access to CDE data?” | Bluebridge Solutions’ backup infrastructure services both CDE and non-CDE systems and requires elevated privileges across environments. Due to the lack of strict segmentation, compromise of the backup system could result in unauthorized access to cardholder data or supporting systems. | Backup architecture diagram, access control policies |
-| Segmentation Validation | “How do you verify segmentation is effective?” | Segmentation testing is not currently performed | Penetration test reports, segmentation test results (missing) |
+| Segmentation Validation | “How do you verify segmentation is effective?” | Segmentation testing is not currently performed | No segmentation penetration test reports on file. Gap acknowledged — see GAP-003 |
 
 
 ---
@@ -164,24 +175,24 @@ As a result, segmentation cannot be relied upon to reduce PCI DSS scope in its c
 
 ### 8.1 Immediate Actions (0-30 days)
 
-1. Bluebridge Solutions should implement least-privilege firewall rule sets between the corporate, management, and CDE zones by removing any "allow any" or overly broad access rules and restricting traffic strictly to required ports, protocols, and source/destination systems.
+1. Bluebridge Solutions should implement least-privilege firewall rule sets between the corporate, management, and CDE zones by removing any "allow any" or overly broad access rules and restricting traffic strictly to required ports, protocols, and source/destination systems. Per PCI DSS v4.0 Requirements 1.3.1 and 1.3.2
 
-2. Identify and remove all unnecessary network and administrative access paths to the CDE, including direct access from corporate workstations, ensuring all access is routed through controlled and monitored entry points (e.g., hardened jump host).
+2. Identify and remove all unnecessary network and administrative access paths to the CDE, including direct access from corporate workstations, ensuring all access is routed through controlled and monitored entry points (e.g., hardened jump host). Per Requirement 7.2.1
 
-3. Conduct an immediate review and reduction of administrative privileges across all systems with access to the CDE, enforcing role-based access control (RBAC), eliminating shared accounts, and requiring multi-factor authentication (MFA) for all privileged access.
+3. Conduct an immediate review and reduction of administrative privileges across all systems with access to the CDE, enforcing role-based access control (RBAC), eliminating shared accounts, and requiring multi-factor authentication (MFA) for all privileged access. Per Requirements 8.4.2 and 7.2.2
 
 ### 8.2 Short-Term Actions (30-90 days)
 
-1. Implement separation of identity infrastructure by decoupling Active Directory services between the corporate and CDE environments, or introducing strict tiering and trust boundaries, to prevent credential compromise in the corporate domain from directly impacting CDE systems.
+1. Implement separation of identity infrastructure by decoupling Active Directory services between the corporate and CDE environments, or introducing strict tiering and trust boundaries, to prevent credential compromise in the corporate domain from directly impacting CDE systems. Per Requirement 8.6.1
 
-2. Implement segmentation-aware centralized logging by restricting log ingestion into the SIEM to explicitly approved CDE sources, enforcing log filtering/redaction for sensitive data (e.g., PAN), and applying role-based access controls to ensure only authorized security personnel can access CDE-related logs. Validate logging configurations against PCI DSS requirements for data protection and retention.
+2. Implement segmentation-aware centralized logging by restricting log ingestion into the SIEM to explicitly approved CDE sources, enforcing log filtering/redaction for sensitive data (e.g., PAN), and applying role-based access controls to ensure only authorized security personnel can access CDE-related logs. Validate logging configurations against PCI DSS requirements for data protection and retention. Per Requirements 10.3.2 and 10.5.1
 
-3. Perform formal network segmentation testing to validate that CDE isolation controls are effective, including attempts to bypass firewall rules and access CDE systems from out-of-scope networks.
+3. Perform formal network segmentation testing to validate that CDE isolation controls are effective, including attempts to bypass firewall rules and access CDE systems from out-of-scope networks. Per Requirement 11.4.5
 
 
 ### 8.3 Long-Term Actions (90+ days)
 
-1. Transition toward a Zero Trust security architecture by eliminating implicit trust between network zones, enforcing continuous identity verification, device posture checks, and least-privilege access for all interactions with the CDE, regardless of network location.
+1. Transition toward a Zero Trust security architecture by eliminating implicit trust between network zones, enforcing continuous identity verification, device posture checks, and least-privilege access for all interactions with the CDE, regardless of network location. Per Requirements 7.2.1 and 1.3.2
 
 2. Redesign the network architecture to enforce true segmentation of the Cardholder Data Environment, including dedicated security zones, isolated identity and logging services, and removal of shared infrastructure dependencies that currently bridge corporate, management, and CDE environments. Incorporate segmentation testing and validation as a recurring control to ensure boundaries remain effective over time.
 
@@ -192,12 +203,12 @@ As a result, segmentation cannot be relied upon to reduce PCI DSS scope in its c
 
 After implementing recommendations, the following risks remain:
 
-| Risk | Likelihood | Impact | Acceptance Required? |
-|--------|-----------------|------------------|-----------|
-| Shared services risk within the Bluebridge Solutions environment | Med | High | Yes |
-| Insider Admin abuse | Low | High | Yes |
-| Residual risk from shared identity and logging infrastructure enabling lateral movement into CDE | Medium | High | Yes |
-| Risk of administrative credential compromise via jump host or VPN pathways | Low–Medium | High | Yes |
+| Risk | Likelihood | Impact | Acceptance Required? | Owner |
+|--------|-----------------|------------------|-----------|-------|
+| Shared services risk within the Bluebridge Solutions environment | Med | High | Yes | CISO |
+| Insider Admin abuse | Low | High | Yes | CISO + HR |
+| Residual risk from shared identity and logging infrastructure enabling lateral movement into CDE | Medium | High | Yes | CISO |
+| Risk of administrative credential compromise via jump host or VPN pathways | Low–Medium | High | Yes | Security Operations Manager |
 
 ---
 
@@ -311,14 +322,15 @@ Cardholder data is transmitted to a third-party payment processor, introducing e
 This creates implicit scope expansion, as systems receiving logs or backups from the CDE may also fall within PCI DSS scope.        
 
 ### C. Evidence Index
+
 | Evidence ID | Description | Location |
 |-------------|-------------|----------|
-EV-001 | Firewall rule sets between zones | Palo Alto config
-EV-002 | Network architecture diagram | Internal documentation
-EV-003 | Active Directory access controls | AD console
-EV-004 | SIEM logging configuration | Splunk dashboard
-EV-005 | Backup access permissions and retention configuration | Backup infrastructure configuration
-EV-006 | VPN and jump host access logs | Access logs
+| EV-001 | Firewall rule sets between zones | Palo Alto config |
+| EV-002 | Network architecture diagram | Internal documentation |
+| EV-003 | Active Directory access controls | AD console |
+| EV-004 | SIEM logging configuration | Splunk dashboard |
+| EV-005 | Backup access permissions and retention configuration | Backup infrastructure configuration |
+| EV-006 | VPN and jump host access logs | Access logs |
 
 ---
 
