@@ -7,7 +7,7 @@
 | Assessment Date | 4/15/2026 |
 | Assessor | Callum McRae |
 | Version | 1.0 |
-| Status | Draft |
+| Status | Final |
 | PCI Classification | Service Provider, Level 1 (processes more than 300,000 transactions annually on behalf of its merchant customers; requires an annual Report on Compliance, not a Self-Assessment Questionnaire) |
 
 Bluebridge Solutions is a mid-sized e-commerce platform provider processing approximately 2.4 million annual card transactions and currently pursuing PCI DSS v4.0 compliance.
@@ -42,7 +42,7 @@ At Bluebridge Solutions, the Cardholder Data Environment (CDE) includes the web 
 
 | System Name | Data Types Stored | Retention | Justification |
 |--------|-----------------|------------------|-----------|
-| Payment DB | Tokenized PAN | 30 Days | Required for transaction reconciliation. Tokenized values only, raw PAN is never written to this system. Token-to-PAN mapping is managed exclusively by the Tokenization Service. |
+| Card Database | Tokenized PAN | 30 Days | Required for transaction reconciliation. Tokenized values only, raw PAN is never written to this system. Token-to-PAN mapping is managed exclusively by the Tokenization Service. |
 | Logging System | Partial PAN (masked) | 7 Days |Used by Bluebridge Solutions engineering team for debugging failed payment transactions |
 | HSM Appliance | Encryption keys, transient PAN during processing | Transient only | PAN is processed in-memory during tokenization and never persisted to disk. |
 
@@ -185,7 +185,7 @@ As a result, segmentation cannot be relied upon to reduce PCI DSS scope in its c
 
 ### 8.2 Short-Term Actions (30-90 days)
 
-1. Implement separation of identity infrastructure by decoupling Active Directory services between the corporate and CDE environments, or introducing strict tiering and trust boundaries, to prevent credential compromise in the corporate domain from directly impacting CDE systems. Per Requirements 8.2.1 (unique IDs, no accounts shared across environments) and 8.4.2 (MFA for all access into the CDE)
+1. Implement separation of identity infrastructure by decoupling Active Directory services between the corporate and CDE environments, or introducing strict tiering and trust boundaries, to prevent credential compromise in the corporate domain from directly impacting CDE systems. Per Requirements 8.2.1 (unique IDs for all users) and 8.4.2 (MFA for all access into the CDE)
 
 2. Implement segmentation-aware centralized logging by restricting log ingestion into the SIEM to explicitly approved CDE sources, enforcing log filtering/redaction for sensitive data (e.g., PAN), and applying role-based access controls to ensure only authorized security personnel can access CDE-related logs. Validate logging configurations against PCI DSS requirements for data protection and retention. Per Requirements 10.3.2 and 10.5.1
 
@@ -302,26 +302,27 @@ Web Server (DMZ)
       ▼ (API Call - PAN in transit)
 Payment App (CDE)
       │
-      ▼
-External Payment Gateway (3rd Party)
-      ├───────────────┬───────────────┐
-      ▼               ▼               ▼
-   HSM           Card Database     Log Collector
-(encryption)     (storage)        (Potential masked PAN exposure)
+      ├───────────────────┬───────────────────┬───────────────────┐
+      ▼                   ▼                   ▼                   ▼
+External Payment       HSM              Card Database       Log Collector
+Gateway (3rd party,  (encryption)      (stores tokenized   (forwards masked
+authorization only)                     PAN)                 PAN to Mgmt Zone)
+                                              │                   │
+                                              ▼                   ▼
+                                     Backup Infrastructure   SIEM (Mgmt Zone) ``` </pre>
 
-                         │
-                         ▼
-                      SIEM (Mgmt Zone)
+This diagram illustrates that cardholder data flows from the Payment App out to four
+independent destinations, rather than through the third-party gateway. The gateway only
+receives what it needs for authorization; it does not forward data back into the CDE.
+Cardholder data flows into logging and backup systems on separate paths from the Card
+Database and Log Collector, indicating that these systems must be considered in scope due to
+potential storage or exposure of sensitive data.
 
-                         │
-                         ▼
-                   Backup Infrastructure ``` </pre>
+Cardholder data is also transmitted to a third-party payment processor, introducing external
+dependency risk and requiring validation of secure transmission and contractual controls.
 
-This diagram illustrates that cardholder data may flow into logging and backup systems, indicating that these systems must be considered in scope due to potential storage or exposure of sensitive data.
-
-Cardholder data is transmitted to a third-party payment processor, introducing external dependency risk and requiring validation of secure transmission and contractual controls    
-
-This creates implicit scope expansion, as systems receiving logs or backups from the CDE may also fall within PCI DSS scope.        
+This creates implicit scope expansion, as systems receiving logs or backups from the CDE may
+also fall within PCI DSS scope.
 
 ### C. Evidence Index
 
